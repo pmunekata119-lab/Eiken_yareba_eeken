@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>シャドーイング練習ツール</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen flex items-center justify-center p-4">
+
+  <div class="bg-white rounded-2xl shadow-xl max-w-5xl w-full p-6 md:p-8">
+    
+    <!-- メインレイアウトエリア（英文 | スピード | 和訳） -->
+    <div class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-6 items-stretch mb-8">
+      
+      <!-- 1. 英文表示カード -->
+      <div class="bg-slate-50 border-2 border-slate-300 rounded-2xl p-6 flex flex-col justify-between min-h-[280px]">
+        <div>
+          <span class="text-xs font-semibold text-slate-400 block mb-2">英文</span>
+          <p id="english-text" class="text-lg md:text-xl font-medium text-slate-800 leading-relaxed">
+            Click "スタート" to begin shadowing.
+          </p>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-200 text-right text-xs text-slate-400">
+          単語数: <span id="word-count" class="font-bold text-slate-600">0</span> words
+        </div>
+      </div>
+
+      <!-- 2. スピード調整バー（縦型コントロール） -->
+      <div class="flex flex-col items-center justify-between py-2 px-3 bg-slate-50 border-2 border-slate-200 rounded-2xl min-w-[90px]">
+        <span class="text-xs font-bold text-slate-600 mb-2">スピード</span>
+        <span class="text-xs font-bold text-indigo-600">2.0</span>
+        
+        <!-- 縦型レンジスライダー -->
+        <div class="h-40 flex items-center justify-center my-2">
+          <input type="range" id="speech-rate" min="0.5" max="2.0" step="0.1" value="1.0" 
+            class="h-32 w-2 bg-slate-200 rounded-lg appearance-none cursor-pointer [writing-mode:vertical-lr] [direction:rtl]"
+            oninput="updateRateLabel(this.value)">
+        </div>
+
+        <span class="text-xs font-bold text-indigo-600">0.5</span>
+        <div class="mt-2 text-xs font-extrabold text-indigo-700 bg-indigo-100 px-2.5 py-1 rounded-full" id="rate-label">
+          1.0x
+        </div>
+      </div>
+
+      <!-- 3. 和訳表示カード -->
+      <div class="bg-slate-50 border-2 border-slate-300 rounded-2xl p-6 flex flex-col justify-between min-h-[280px]">
+        <div>
+          <span class="text-xs font-semibold text-slate-400 block mb-2">和訳</span>
+          <p id="japanese-text" class="text-base md:text-lg font-medium text-slate-700 leading-relaxed">
+            「スタート」を押すと練習が始まります。
+          </p>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-200 text-right text-xs text-slate-400">
+          ジャンル: <span id="genre-badge" class="font-bold text-indigo-600">ニュース</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 下部ボタンエリア -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      
+      <!-- もう一度（同じ英文を再再生） -->
+      <button onclick="playCurrentText()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-4 px-6 rounded-2xl shadow transition text-base flex items-center justify-center gap-2">
+        <span>🔄</span> もう一度
+      </button>
+
+      <!-- スタート（お手本再生 ＆ 停止） -->
+      <button id="start-btn" onclick="togglePlay()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-2xl shadow-lg hover:shadow-xl transition text-lg flex items-center justify-center gap-2">
+        <span id="start-icon">▶️</span> <span id="start-label">スタート</span>
+      </button>
+
+      <!-- 次の英文（ランダム切り替え） -->
+      <button onclick="loadRandomText()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold py-4 px-6 rounded-2xl shadow transition text-base flex items-center justify-center gap-2">
+        <span>⏭️</span> 次の英文
+      </button>
+
+    </div>
+
+  </div>
+
+  <script>
+    const textDatabase = [
+      {
+        type: "ニュース",
+        text: "Global climate negotiations reached a critical turning point today as international delegates agreed on a new framework to accelerate renewable energy adoption.",
+        japanese: "国際的な代表者が再生可能エネルギーの導入を加速するための新しい枠組みに合意したことで、世界的な気候変動交渉は本日、重要な転換点を迎えました。"
+      },
+      {
+        type: "論文・科学",
+        text: "Recent neuroscientific research suggests that regular physical exercise directly influences cognitive adaptability and memory retention by stimulating neurogenesis in the hippocampus.",
+        japanese: "最近の神経科学研究によると、定期的な運動は海馬における神経発生を刺激することで、認知の順応性や記憶の定着に直接影響を与えることが示唆されています。"
+      },
+      {
+        type: "物語",
+        text: "The old lighthouse stood silent against the darkening horizon, its weathered stone walls holding decades of coastal history as storm clouds gathered overhead.",
+        japanese: "頭上に暗雲が立ち込める中、旧式の灯台は暗くなりゆく水平線に向かって静かに佇んでおり、風化した石壁には数十年にわたる海岸の歴史が刻まれていました。"
+      },
+      {
+        type: "スピーチ",
+        text: "Innovation thrives in moments of uncertainty and relentless curiosity. When we challenge established assumptions, we unlock creative possibilities that transform how we live.",
+        japanese: "イノベーションは、不確実性と絶え間ない好奇心の中で育まれます。私たちが確立された前提に挑戦するとき、生き方を変革する創造的な可能性が開かれます。"
+      }
+    ];
+
+    let currentIndex = 0;
+    let isPlaying = false;
+    let maleVoice = null;
+
+    // ネイティブ男声の選出ロジック
+    function initVoices() {
+      if (!('speechSynthesis' in window)) return;
+
+      const voices = window.speechSynthesis.getVoices();
+      
+      // 1. 米国英語の男性声を優先指定（代表的なOS標準の男声音声名）
+      const preferredNames = ['David', 'Mark', 'Alex', 'Fred', 'George', 'Natural'];
+      maleVoice = voices.find(v => 
+        v.lang.startsWith('en') && preferredNames.some(name => v.name.includes(name))
+      );
+
+      // 2. なければ「en-US」かつ「Male」等の属性を持つものを検索
+      if (!maleVoice) {
+        maleVoice = voices.find(v => v.lang === 'en-US' && v.name.toLowerCase().includes('male'));
+      }
+
+      // 3. それでも見つからなければ一般的な米国英語ボイスをセット
+      if (!maleVoice) {
+        maleVoice = voices.find(v => v.lang === 'en-US');
+      }
+    }
+
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.onvoiceschanged = initVoices;
+    }
+
+    window.onload = () => {
+      initVoices();
+      loadRandomText();
+    };
+
+    function loadRandomText() {
+      stopAudio();
+      currentIndex = Math.floor(Math.random() * textDatabase.length);
+      const data = textDatabase[currentIndex];
+
+      document.getElementById('english-text').textContent = data.text;
+      document.getElementById('japanese-text').textContent = data.japanese;
+      document.getElementById('genre-badge').textContent = data.type;
+      document.getElementById('word-count').textContent = data.text.trim().split(/\s+/).length;
+    }
+
+    function updateRateLabel(val) {
+      document.getElementById('rate-label').textContent = `${parseFloat(val).toFixed(1)}x`;
+    }
+
+    function togglePlay() {
+      if (!isPlaying) {
+        playCurrentText();
+      } else {
+        stopAudio();
+      }
+    }
+
+    function playCurrentText() {
+      if (!('speechSynthesis' in window)) return;
+      
+      stopAudio();
+
+      const utterance = new SpeechSynthesisUtterance(textDatabase[currentIndex].text);
+      utterance.lang = 'en-US';
+      utterance.rate = parseFloat(document.getElementById('speech-rate').value);
+
+      // 男声音声が取得できている場合は設定
+      if (maleVoice) {
+        utterance.voice = maleVoice;
+      } else {
+        // 声が見つからない場合はピッチ（声の高さ）を少し低く設定して男性っぽく調整
+        utterance.pitch = 0.85; 
+      }
+
+      utterance.onstart = () => {
+        isPlaying = true;
+        updateUI(true);
+      };
+
+      utterance.onend = () => {
+        isPlaying = false;
+        updateUI(false);
+      };
+
+      utterance.onerror = () => {
+        isPlaying = false;
+        updateUI(false);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function stopAudio() {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      isPlaying = false;
+      updateUI(false);
+    }
+
+    function updateUI(playing) {
+      const startBtn = document.getElementById('start-btn');
+      const startIcon = document.getElementById('start-icon');
+      const startLabel = document.getElementById('start-label');
+
+      if (playing) {
+        startIcon.textContent = "⏹️";
+        startLabel.textContent = "停止";
+        startBtn.classList.replace('bg-indigo-600', 'bg-rose-600');
+        startBtn.classList.replace('hover:bg-indigo-700', 'hover:bg-rose-700');
+      } else {
+        startIcon.textContent = "▶️";
+        startLabel.textContent = "スタート";
+        startBtn.classList.replace('bg-rose-600', 'bg-indigo-600');
+        startBtn.classList.replace('hover:bg-rose-700', 'hover:bg-indigo-700');
+      }
+    }
+  </script>
+</body>
+</html>

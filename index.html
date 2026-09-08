@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>英検2級〜準1級 単熟語クイズ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex items-center justify-center p-4">
+
+  <div class="bg-white rounded-2xl shadow-xl max-w-xl w-full p-6 md:p-8 transition-all">
+    
+    <!-- ヘッダー -->
+    <div class="flex justify-between items-center border-b pb-4 mb-6">
+      <div>
+        <h1 class="text-xl font-bold text-slate-800">英検2級〜準1級 単熟語クイズ</h1>
+        <p class="text-xs text-slate-500 mt-1">1問ずつ出題・10問後再出題ロジック搭載</p>
+      </div>
+      <div class="text-right">
+        <span class="text-xs text-slate-400 block">進捗</span>
+        <span id="progress-count" class="text-lg font-bold text-indigo-600">0</span>
+        <span class="text-xs text-slate-400"> / 20 問完了</span>
+      </div>
+    </div>
+
+    <!-- メインコンテンツ領域 -->
+    <div id="quiz-card" class="min-h-[220px] flex flex-col justify-center items-center text-center p-6 bg-slate-50 rounded-xl border border-slate-200 mb-6 relative">
+      <span id="word-type" class="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700 mb-3">
+        単語 / 熟語
+      </span>
+      <h2 id="target-word" class="text-3xl font-extrabold text-slate-800 mb-4 tracking-wide">
+        Loading...
+      </h2>
+      
+      <!-- 解答（初期状態は隠す） -->
+      <div id="answer-container" class="hidden w-full mt-2 pt-4 border-t border-slate-200 border-dashed">
+        <!-- 音声読み上げボタン -->
+        <div class="mb-3">
+          <button onclick="speakWord()" class="inline-flex items-center gap-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold py-1.5 px-3 rounded-full transition">
+            <span>🔊 読み上げる</span>
+          </button>
+        </div>
+        
+        <p class="text-sm text-slate-500 mb-1">【意味】</p>
+        <p id="meaning-text" class="text-xl font-bold text-emerald-600 mb-2"></p>
+        <p id="example-sentence" class="text-xs text-slate-500 italic"></p>
+      </div>
+    </div>
+
+    <!-- アクションボタンエリア -->
+    <div id="action-buttons">
+      <!-- 段階1: 正解表示ボタン -->
+      <button id="show-answer-btn" onclick="showAnswer()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-md hover:shadow-lg transition duration-200">
+        日本語訳（答え）を確認する
+      </button>
+
+      <!-- 段階2: 自己採点ボタン（初期は隠す） -->
+      <div id="judge-buttons" class="hidden grid grid-cols-2 gap-4">
+        <button onclick="handleResult(false)" class="bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 px-4 rounded-xl shadow-md transition duration-200 flex flex-col items-center justify-center">
+          <span class="text-base">わからなかった</span>
+          <span class="text-xs font-normal opacity-90">（10問後に再出題）</span>
+        </button>
+        <button onclick="handleResult(true)" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-xl shadow-md transition duration-200 flex flex-col items-center justify-center">
+          <span class="text-base">覚えていた</span>
+          <span class="text-xs font-normal opacity-90">（完了にする）</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 復習待ちキュー情報 -->
+    <div class="mt-6 text-center border-t pt-4 border-slate-100">
+      <p class="text-xs text-slate-500">
+        現在復習待ちの単語: <span id="review-queue-count" class="font-bold text-rose-500 text-sm">0</span> 件
+      </p>
+    </div>
+
+  </div>
+
+  <script>
+    // 単熟語データリスト（英検2級〜準1級レベル）
+    const initialVocabularyList = [
+      { id: 1, word: "reluctant", meaning: "気が進まない、気が乗らない", type: "2級", example: "He was reluctant to commit to the plan." },
+      { id: 2, word: "take ... for granted", meaning: "…を当然のことと思う", type: "熟語", example: "Don't take her support for granted." },
+      { id: 3, word: "inevitable", meaning: "避けられない、不可避の", type: "準1級", example: "Change is an inevitable part of life." },
+      { id: 4, word: "put off", meaning: "延期する、後回しにする", type: "熟語", example: "Never put off until tomorrow what you can do today." },
+      { id: 5, word: "abundant", meaning: "豊富な、大量の", type: "準1級", example: "The country is rich in abundant natural resources." },
+      { id: 6, word: "coincide with", meaning: "〜と同時に起きる、一致する", type: "熟語", example: "My vacation coincides with the national holiday." },
+      { id: 7, word: "deteriorate", meaning: "悪化する、低下する", type: "準1級", example: "The weather conditions began to deteriorate quickly." },
+      { id: 8, word: "come up with", meaning: "（名案などを）思いつく・提案する", type: "熟語", example: "She came up with a brilliant solution." },
+      { id: 9, word: "vulnerable", meaning: "傷つきやすい、脆弱な", type: "準1級", example: "Old people are particularly vulnerable to the flu." },
+      { id: 10, word: "in terms of", meaning: "〜の観点から、〜に関して", type: "熟語", example: "The project was a success in terms of profit." },
+      { id: 11, word: "subdued", meaning: "控えめな、静かな、活気がない", type: "準1級", example: "She seemed unusually subdued at the meeting." },
+      { id: 12, word: "call off", meaning: "中止する、取り消す", type: "熟語", example: "They had to call off the outdoor concert due to rain." },
+      { id: 13, word: "unprecedented", meaning: "前例のない、空前の", type: "準1級", example: "The region experienced unprecedented rainfall." },
+      { id: 14, word: "make ends meet", meaning: "（収入内で）やりくりする", type: "熟語", example: "It is hard to make ends meet on a low salary." },
+      { id: 15, word: "persuade", meaning: "説得する", type: "2級", example: "I managed to persuade him to join our team." },
+      { id: 16, word: "carry out", meaning: "実行する、遂行する", type: "熟語", example: "They carried out a series of experiments." },
+      { id: 17, word: "contradict", meaning: "〜と矛盾する、反対意見を言う", type: "準1級", example: "His actions contradict his promises." },
+      { id: 18, word: "look down on", meaning: "〜を見下す、軽視する", type: "熟語", example: "You should never look down on anyone." },
+      { id: 19, word: "simultaneously", meaning: "同時に、一斉に", type: "準1級", example: "The two games will be broadcast simultaneously." },
+      { id: 20, word: "account for", meaning: "〜を説明する、〜（割合）を占める", type: "熟語", example: "High housing costs account for most of my budget." }
+    ];
+
+    // 配列をシャッフルする関数（Fisher-Yates shuffle）
+    function shuffleArray(array) {
+      const shuffled = array.map(item => ({ ...item }));
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    }
+
+    // 状態管理（起動時にランダムシャッフル）
+    let queue = shuffleArray(initialVocabularyList);
+    let currentItem = null;
+    let totalCompleted = 0;
+    let reviewCount = 0;
+    const initialTotal = initialVocabularyList.length;
+
+    // DOM要素
+    const wordEl = document.getElementById('target-word');
+    const typeEl = document.getElementById('word-type');
+    const meaningEl = document.getElementById('meaning-text');
+    const exampleEl = document.getElementById('example-sentence');
+    const answerContainer = document.getElementById('answer-container');
+    const showAnswerBtn = document.getElementById('show-answer-btn');
+    const judgeButtons = document.getElementById('judge-buttons');
+    const progressCountEl = document.getElementById('progress-count');
+    const reviewQueueCountEl = document.getElementById('review-queue-count');
+
+    // 初期起動
+    nextQuestion();
+
+    // 次の問題を表示する関数
+    function nextQuestion() {
+      if (!currentItem && queue.length === 0) {
+        showCompletionScreen();
+        return;
+      }
+
+      // UIの初期化
+      answerContainer.classList.add('hidden');
+      showAnswerBtn.classList.remove('hidden');
+      judgeButtons.classList.add('hidden');
+
+      // 次の単語を取得（キューの先頭から）
+      currentItem = queue.shift();
+
+      if (!currentItem) {
+        showCompletionScreen();
+        return;
+      }
+
+      // 画面更新
+      wordEl.textContent = currentItem.word;
+      typeEl.textContent = currentItem.type;
+      meaningEl.textContent = currentItem.meaning;
+      exampleEl.textContent = currentItem.example ? `Ex: ${currentItem.example}` : '';
+
+      updateStats();
+    }
+
+    // 答えを表示する関数
+    function showAnswer() {
+      answerContainer.classList.remove('hidden');
+      showAnswerBtn.classList.add('hidden');
+      judgeButtons.classList.remove('hidden');
+    }
+
+    // 単語の音声読み上げ関数（Web Speech API）
+    function speakWord() {
+      if (!currentItem || !('speechSynthesis' in window)) return;
+      
+      window.speechSynthesis.cancel();
+      const textToSpeak = currentItem.word.replace(/\.\.\./g, 'something');
+      
+      const utterance = new SpeechSynthesisUtterance(textToSpeak);
+      utterance.lang = 'en-US';
+      utterance.rate = 0.9;
+      
+      window.speechSynthesis.speak(utterance);
+    }
+
+    // 正解・不正解の判定処理
+    function handleResult(isCorrect) {
+      if (!currentItem) return;
+
+      if (isCorrect) {
+        if (currentItem.isReview) {
+          reviewCount--;
+        }
+        totalCompleted++;
+      } else {
+        if (!currentItem.isReview) {
+          currentItem.isReview = true;
+          reviewCount++;
+        }
+        
+        // 10問後（またはキューの末尾）に再出題として挿入
+        const insertIndex = Math.min(10, queue.length);
+        queue.splice(insertIndex, 0, currentItem);
+      }
+
+      currentItem = null;
+      
+      if (queue.length === 0 && totalCompleted === initialTotal) {
+        showCompletionScreen();
+      } else {
+        nextQuestion();
+      }
+    }
+
+    // 進捗・状態の更新関数
+    function updateStats() {
+      progressCountEl.textContent = totalCompleted;
+      reviewQueueCountEl.textContent = reviewCount;
+    }
+
+    // 完了画面
+    function showCompletionScreen() {
+      document.getElementById('quiz-card').innerHTML = `
+        <div class="py-8 text-center">
+          <div class="text-5xl mb-4">🎉</div>
+          <h2 class="text-2xl font-bold text-slate-800 mb-2">おめでとうございます！</h2>
+          <p class="text-slate-600 mb-6">すべての単語・熟語をマスターしました。</p>
+          <button onclick="location.reload()" class="bg-indigo-600 text-white font-bold py-2.5 px-6 rounded-lg shadow hover:bg-indigo-700 transition">
+            もう一度チャレンジする
+          </button>
+        </div>
+      `;
+      document.getElementById('action-buttons').classList.add('hidden');
+      progressCountEl.textContent = initialTotal;
+      reviewQueueCountEl.textContent = 0;
+    }
+  </script>
+</body>
+</html>
